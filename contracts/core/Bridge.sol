@@ -43,13 +43,14 @@ contract Bridge is Ownable {
     error ChainAlreadyExists(uint256 chainId);
     error ChainAlreadyRemoved(uint256 chainId);
     error IncorrectRequestId(uint256 requestId);
-    error IncoorectRequestStatus(RequestStatus requestStatus);
+    error IncorrectRequestStatus(RequestStatus requestStatus);
 
     // event
     event WhitelistUpdated(address indexed _address, bool status);
     event ChainListUpdated(uint256 indexed chainId, bool status);
     event Requested(address indexed requestAddress, RequestInfo request);
     event SetRequested(uint256 indexed requestId, RequestStatus indexed requestStatus);
+    event TriggerPayouted(address indexed _address, uint256 value);
     
     // modifier
     modifier onlyWhiteList {
@@ -57,17 +58,22 @@ contract Bridge is Ownable {
         _;
     }
 
+    modifier checkValue(uint256 value) {
+        require(value == msg.value, "incorrect value");
+        _;
+    }
+
     constructor() Ownable(msg.sender) {
         whiteList[msg.sender] = true;
     }
 
-    function setWhiteList(address _address, bool status) public onlyOwner {
+    function setWhiteList(address _address, bool status) external onlyOwner {
         whiteList[_address] = status;
 
         emit WhitelistUpdated(_address, status);
     }
 
-    function addChain(uint256 chainId) public onlyOwner {
+    function addChain(uint256 chainId) external onlyOwner {
         if (chainList[chainId].active) revert ChainAlreadyExists(chainId);
 
         chainList[chainId].id = chainId;
@@ -76,7 +82,7 @@ contract Bridge is Ownable {
         emit ChainListUpdated(chainId, true);
     }
 
-    function removeChain(uint256 chainId) public onlyOwner {
+    function removeChain(uint256 chainId) external onlyOwner {
         if (chainList[chainId].id == 0) revert IncorrectChainId(chainId);
         else if (!chainList[chainId].active) revert ChainAlreadyRemoved(chainId);
         
@@ -87,23 +93,22 @@ contract Bridge is Ownable {
 
     // 교환 요청
     function request(
-        uint256 fromChainId,
         uint256 toChainId,
-        uint256 value
-    ) public onlyWhiteList {
+        uint256 _value
+    ) external payable checkValue(_value) onlyWhiteList {
         RequestInfo memory req;
         uint256 requestId = ++requestIdCount;
 
         req.id = requestId;
         req.requestBy = msg.sender;
-        req.fromChainId = fromChainId;
+        req.fromChainId = 1;
         req.toChainId = toChainId;
-        req.fromValue = value;
+        req.fromValue = _value;
         req.status = RequestStatus.pending;
 
         // @TODO chainLink 사용해서 가격 받아오기
         // 교환 비율 지정 (현재 1 : 1)
-        req.toValue = value;
+        req.toValue = _value;
 
         requestList[requestId] = req;
         
@@ -111,7 +116,7 @@ contract Bridge is Ownable {
     }
 
     // 교환 요청 취소
-    function cancelRequest(uint256 requestId) public onlyWhiteList {
+    function cancelRequest(uint256 requestId) external onlyWhiteList {
         RequestInfo storage req = requestList[requestId];
         if (req.id == 0) revert IncorrectRequestId(requestId);
         require(req.requestBy == msg.sender, "only the requester can cancel");
@@ -123,7 +128,7 @@ contract Bridge is Ownable {
     }
 
     // 교환 요청 상태 결정
-    function setRequest(uint256 requestId, RequestStatus status) public onlyOwner {
+    function setRequest(uint256 requestId, RequestStatus status) external onlyOwner {
         RequestInfo storage req = requestList[requestId];
 
         if (req.id == 0) revert IncorrectRequestId(requestId);
@@ -135,4 +140,13 @@ contract Bridge is Ownable {
 
         emit SetRequested(requestId, status);
     }
+
+    function triggerPayout(address payable _address, uint256 _value) external onlyOwner {
+        require(_value < address(this).balance, "contract value low");
+        (bool success, ) = _address.call{value: _value}("");
+        require(success, "triggerPayout Fail");
+
+        emit TriggerPayouted(_address, _value);
+    }
+
 }

@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { Signer } from "ethers";
+import { Signer, ethers as _ethers } from "ethers";
 import { expect } from "chai"
 import { Bridge } from "../typechain-types";
 
@@ -101,7 +101,7 @@ describe("Bridge Contract Main Test", () => {
         for (let i = 1; i <= 3; i++) {
             const tx = await bridge
                 .connect(otherAccounts[0])
-                .request(1n, 2n, 1000n);
+                .request(2n, 1000n, { value: 1000 });
             await tx.wait();
 
             await expect(tx).to.emit(bridge, "Requested");
@@ -185,5 +185,22 @@ describe("Bridge Contract Main Test", () => {
         expect((await bridge.requestList(3n)).exchangedAt).to.equal(0n);
         expect((await bridge.requestList(3n)).status).to.equal(RequestStatus.rejected);
         expect((await bridge.requestList(3n)).statusDecidedBy).to.equal(await owner.getAddress());
+    });
+
+    it("trigger payout test", async () => {
+        await expect(bridge
+            .connect(owner)
+            .triggerPayout(otherAccounts[3], 10000)
+        ).to.be.revertedWith("contract value low");
+
+        const tx = await bridge
+            .connect(owner)
+            .triggerPayout(otherAccounts[3], 1000)
+
+        await tx.wait();
+
+        expect(tx).to
+            .emit(bridge, "TriggerPayouted")
+            .withArgs(otherAccounts[3], 1000);
     });
 });
