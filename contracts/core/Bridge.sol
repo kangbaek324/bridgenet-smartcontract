@@ -43,7 +43,6 @@ contract Bridge is Ownable {
     error ChainAlreadyExists(uint256 chainId);
     error ChainAlreadyRemoved(uint256 chainId);
     error IncorrectRequestId(uint256 requestId);
-    error IncorrectRequestStatus(RequestStatus requestStatus);
 
     // event
     event WhitelistUpdated(address indexed _address, bool status);
@@ -141,6 +140,7 @@ contract Bridge is Ownable {
         emit SetRequested(requestId, status);
     }
 
+    // 송금 함수
     function triggerPayout(address payable _address, uint256 _value) external onlyOwner {
         require(_value < address(this).balance, "contract value low");
         (bool success, ) = _address.call{value: _value}("");
