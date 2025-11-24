@@ -33,9 +33,9 @@ contract Bridge is Ownable {
 
     // mapping, array
     // @TODO List대신 s로 변경하면 더 좋을듯
-    mapping (address => bool) public whiteList;
-    mapping (uint256 => Chain) public chainList;
-    mapping (uint256 => RequestInfo) public requestList;
+    mapping(address => bool) public whiteList;
+    mapping(uint256 => Chain) public chainList;
+    mapping(uint256 => RequestInfo) public requestList;
 
     // error
     error WhiteListUnauthorizedAccount(address _address);
@@ -48,12 +48,16 @@ contract Bridge is Ownable {
     event WhitelistUpdated(address indexed _address, bool status);
     event ChainListUpdated(uint256 indexed chainId, bool status);
     event Requested(address indexed requestAddress, RequestInfo request);
-    event SetRequested(uint256 indexed requestId, RequestStatus indexed requestStatus);
+    event SetRequested(
+        uint256 indexed requestId,
+        RequestStatus indexed requestStatus
+    );
     event TriggerPayouted(address indexed _address, uint256 value);
-    
+
     // modifier
-    modifier onlyWhiteList {
-        if (!whiteList[msg.sender]) revert WhiteListUnauthorizedAccount(msg.sender);
+    modifier onlyWhiteList() {
+        if (!whiteList[msg.sender])
+            revert WhiteListUnauthorizedAccount(msg.sender);
         _;
     }
 
@@ -83,8 +87,9 @@ contract Bridge is Ownable {
 
     function removeChain(uint256 chainId) external onlyOwner {
         if (chainList[chainId].id == 0) revert IncorrectChainId(chainId);
-        else if (!chainList[chainId].active) revert ChainAlreadyRemoved(chainId);
-        
+        else if (!chainList[chainId].active)
+            revert ChainAlreadyRemoved(chainId);
+
         chainList[chainId].active = false;
 
         emit ChainListUpdated(chainId, false);
@@ -97,10 +102,10 @@ contract Bridge is Ownable {
     ) external payable checkValue(_value) onlyWhiteList {
         RequestInfo memory req;
         uint256 requestId = ++requestIdCount;
-
+        // @TODO 체인검사 로직 없음
         req.id = requestId;
         req.requestBy = msg.sender;
-        req.fromChainId = 1;
+        req.fromChainId = block.chainid;
         req.toChainId = toChainId;
         req.fromValue = _value;
         req.status = RequestStatus.pending;
@@ -110,7 +115,7 @@ contract Bridge is Ownable {
         req.toValue = _value;
 
         requestList[requestId] = req;
-        
+
         emit Requested(msg.sender, req);
     }
 
@@ -119,19 +124,28 @@ contract Bridge is Ownable {
         RequestInfo storage req = requestList[requestId];
         if (req.id == 0) revert IncorrectRequestId(requestId);
         require(req.requestBy == msg.sender, "only the requester can cancel");
-        require(req.status == RequestStatus.pending, "only when status pending can cancel");
+        require(
+            req.status == RequestStatus.pending,
+            "only when status pending can cancel"
+        );
 
         req.status = RequestStatus.canceled;
-        
+
         emit SetRequested(requestId, RequestStatus.canceled);
     }
 
     // 교환 요청 상태 결정
-    function setRequest(uint256 requestId, RequestStatus status) external onlyOwner {
+    function setRequest(
+        uint256 requestId,
+        RequestStatus status
+    ) external onlyOwner {
         RequestInfo storage req = requestList[requestId];
 
         if (req.id == 0) revert IncorrectRequestId(requestId);
-        require(req.status == RequestStatus.pending, "only when status pending can setRequest");
+        require(
+            req.status == RequestStatus.pending,
+            "only when status pending can setRequest"
+        );
 
         if (status == RequestStatus.approved) req.exchangedAt = block.timestamp;
         req.status = status;
@@ -141,12 +155,14 @@ contract Bridge is Ownable {
     }
 
     // 송금 함수
-    function triggerPayout(address payable _address, uint256 _value) external onlyOwner {
+    function triggerPayout(
+        address payable _address,
+        uint256 _value
+    ) external onlyOwner {
         require(_value < address(this).balance, "contract value low");
         (bool success, ) = _address.call{value: _value}("");
         require(success, "triggerPayout Fail");
 
         emit TriggerPayouted(_address, _value);
     }
-
 }
