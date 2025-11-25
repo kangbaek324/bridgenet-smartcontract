@@ -53,6 +53,7 @@ contract Bridge is Ownable {
         RequestStatus indexed requestStatus
     );
     event TriggerPayouted(address indexed _address, uint256 value);
+    event AddBalance(address _address, uint256 value);
 
     // modifier
     modifier onlyWhiteList() {
@@ -164,5 +165,9 @@ contract Bridge is Ownable {
         require(success, "triggerPayout Fail");
 
         emit TriggerPayouted(_address, _value);
+    }
+
+    function addBalance() external payable {
+        emit AddBalance(msg.sender, msg.value);
     }
 }

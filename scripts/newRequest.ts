@@ -14,7 +14,9 @@ async function main() {
 
   const tx = await contract
     .connect(signers[0])
-    .request(111555111n, 1, { value: 1 });
+    .request(11155111n, ethers.parseEther("0.01"), {
+      value: ethers.parseEther("0.01"),
+    });
 
   const receipt = await tx.wait();
 
