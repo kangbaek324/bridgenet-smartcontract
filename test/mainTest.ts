@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import { Signer, ethers as _ethers } from "ethers";
 import { expect } from "chai";
-import { Bridge } from "../typechain-types";
+import { Bridge, Bridge__factory } from "../typechain-types";
 
 describe("Bridge Contract Main Test", () => {
   let owner: Signer, otherAccounts: Signer[], bridge: Bridge;
@@ -16,8 +16,7 @@ describe("Bridge Contract Main Test", () => {
   before(async () => {
     [owner, ...otherAccounts] = await ethers.getSigners();
 
-    const Bridge = await ethers.getContractFactory("Bridge");
-    bridge = await Bridge.connect(owner).deploy();
+    bridge = await new Bridge__factory(owner).deploy();
   });
 
   // onlyOwner
@@ -33,6 +32,9 @@ describe("Bridge Contract Main Test", () => {
   it("whiteList Test", async () => {
     const tx = await bridge.connect(owner).setWhiteList(otherAccounts[0], true);
     await tx.wait();
+    
+    const tx2 = await bridge.connect(owner).setWhiteList(otherAccounts[9], true);
+    await tx2.wait();
 
     await expect(tx)
       .to.emit(bridge, "WhitelistUpdated")
@@ -97,7 +99,7 @@ describe("Bridge Contract Main Test", () => {
       const request = await bridge.requestList(i);
       expect(request.id).to.equal(i);
       expect(request.requestBy).to.equal(otherAccounts[0]);
-      expect(request.fromChainId).to.equal(1n);
+      expect(request.fromChainId).to.equal(31337n);
       expect(request.fromValue).to.equal(1000n);
       expect(request.toChainId).to.equal(2n);
       expect(request.toValue).to.equal(1000n);
@@ -114,18 +116,25 @@ describe("Bridge Contract Main Test", () => {
       bridge.connect(otherAccounts[0]).cancelRequest(99n)
     ).to.be.revertedWithCustomError(bridge, "IncorrectRequestId");
 
-    // 요청자가 아닌 다른 사람의 취소요청
-    await expect(bridge.connect(owner).cancelRequest(1n)).to.be.revertedWith(
-      "only the requester can cancel"
+    // 요청자나 오너가 아닌 다른 사람의 취소요청
+    await expect(bridge.connect(otherAccounts[9]).cancelRequest(1n)).to.be.revertedWith(
+      "requester or owner can cancel"
     );
 
-    // 취소요청
+    console.log("User Account: " + await ethers.provider.getBalance(otherAccounts[0]));
+    console.log("Contract Account: " + await ethers.provider.getBalance(await bridge.getAddress()));
+        
+    // 취소요청 
+    // @TODO Owner가 요청했을때도 되는지 테스트 코드 추가해야됨
+    // @TODO 이더가 올바르게 전송되었는지도 체크 해야됨
     const tx = await bridge.connect(otherAccounts[0]).cancelRequest(1n);
     await tx.wait();
-
+    
+    console.log("User Account: " + await ethers.provider.getBalance(otherAccounts[0]));
+    console.log("Contract Account: " + await ethers.provider.getBalance(await bridge.getAddress()));
     expect(tx)
       .to.emit(bridge, "SetRequested")
-      .withArgs(1, RequestStatus.canceled);
+      .withArgs(1, RequestStatus.canceled, otherAccounts[0]);
 
     // 이미 처리된 요청에 취소요청
     await expect(

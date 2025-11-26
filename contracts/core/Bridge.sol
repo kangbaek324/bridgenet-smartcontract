@@ -47,11 +47,8 @@ contract Bridge is Ownable {
     // event
     event WhitelistUpdated(address indexed _address, bool status);
     event ChainListUpdated(uint256 indexed chainId, bool status);
-    event Requested(address indexed requestAddress, RequestInfo request);
-    event SetRequested(
-        uint256 indexed requestId,
-        RequestStatus indexed requestStatus
-    );
+    event Requested(address indexed requestedBy, RequestInfo request);
+    event SetRequested(uint256 indexed requestId, RequestStatus indexed requestStatus, address requestedBy);
     event TriggerPayouted(address indexed _address, uint256 value);
     event AddBalance(address _address, uint256 value);
 
@@ -124,7 +121,7 @@ contract Bridge is Ownable {
     function cancelRequest(uint256 requestId) external onlyWhiteList {
         RequestInfo storage req = requestList[requestId];
         if (req.id == 0) revert IncorrectRequestId(requestId);
-        require(req.requestBy == msg.sender, "only the requester can cancel");
+        require(req.requestBy == msg.sender || msg.sender == owner(), "requester or owner can cancel");
         require(
             req.status == RequestStatus.pending,
             "only when status pending can cancel"
@@ -132,7 +129,11 @@ contract Bridge is Ownable {
 
         req.status = RequestStatus.canceled;
 
-        emit SetRequested(requestId, RequestStatus.canceled);
+        require(req.fromValue < address(this).balance, "contract value low");
+        (bool success, ) = req.requestBy.call{value: req.fromValue}("");
+        require(success, "refund Fail");
+
+        emit SetRequested(requestId, RequestStatus.canceled, msg.sender);
     }
 
     // 교환 요청 상태 결정
@@ -152,7 +153,7 @@ contract Bridge is Ownable {
         req.status = status;
         req.statusDecidedBy = msg.sender;
 
-        emit SetRequested(requestId, status);
+        emit SetRequested(requestId, status, msg.sender);
     }
 
     // 송금 함수
