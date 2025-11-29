@@ -6,4 +6,4 @@
 ## amoy contract address
  0xc17e8110c0E80193f11A5f69eD68F90b6258833e
 
- Backend Repository or project description <a href="https://github.com/kangbaek324/bridgenet-smartcontract">here</a>
+ Backend Repository or project description <a href="https://github.com/kangbaek324/bridgenet-backend.git">here</a>
