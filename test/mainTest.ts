@@ -87,6 +87,26 @@ describe("Bridge Contract Main Test", () => {
     ).to.be.revertedWithCustomError(bridge, "InvalidMinimumValue");
   });
 
+  // 유효한 Max 값 설정
+  it("should update maximum value", async () => {
+    const newMax = ethers.parseEther("0.1");
+    await bridge.connect(owner).setMaximumValue(newMax);
+    expect(await bridge.requestMaximumValue()).to.equal(newMax);
+
+    // 원복
+    await bridge.connect(owner).setMaximumValue(MAX_VALUE);
+  });
+
+  // 유효한 Min 값 설정
+  it("should update minimum value", async () => {
+    const newMin = ethers.parseEther("0.000001");
+    await bridge.connect(owner).setMinimumValue(newMin);
+    expect(await bridge.requestMinimumValue()).to.equal(newMin);
+
+    // 원복
+    await bridge.connect(owner).setMinimumValue(MIN_VALUE);
+  });
+
   // [ Request ]
   // 최소값보다 낮은 값으로 요청
   it("should revert request below minimum value", async () => {
