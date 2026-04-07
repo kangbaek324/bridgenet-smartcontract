@@ -1,4 +1,4 @@
-## BridgeNet Smart Contract
+# BridgeNet Smart Contract
 
 크로스체인 브릿지 서비스 BridgeNet의 스마트컨트랙트입니다.
 
