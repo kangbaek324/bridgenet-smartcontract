@@ -4,19 +4,15 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Bridge is Ownable {
-    uint256 requestIdCount;
+    uint256 public requestIdCount = 1;
+    uint256 public requestMinimumValue = 0.00001 ether;
+    uint256 public requestMaximumValue = 0.05 ether;
 
     // enum
     enum RequestStatus {
-        pending,
-        approved,
+        normal,
         rejected,
         canceled
-    }
-
-    struct Chain {
-        uint256 id;
-        bool active;
     }
 
     struct RequestInfo {
@@ -27,38 +23,42 @@ contract Bridge is Ownable {
         uint256 toChainId;
         uint256 toValue;
         RequestStatus status;
-        address statusDecidedBy;
-        uint256 exchangedAt;
     }
 
     // mapping, array
-    // @TODO List대신 s로 변경하면 더 좋을듯
-    mapping (address => bool) public whiteList;
-    mapping (uint256 => Chain) public chainList;
-    mapping (uint256 => RequestInfo) public requestList;
+    mapping(address => bool) public whiteList;
+    mapping(uint256 => RequestInfo) public requestList;
+    mapping(uint256 => mapping(uint256 => bool)) public payoutList; // chainId:reqId = bool
 
     // error
     error WhiteListUnauthorizedAccount(address _address);
-    error IncorrectChainId(uint256 chainId);
-    error ChainAlreadyExists(uint256 chainId);
-    error ChainAlreadyRemoved(uint256 chainId);
+    error BelowMinimumValue(uint256 minimum, uint256 actual);
+    error ExceedsMaximumValue(uint256 maximum, uint256 actual);
+
     error IncorrectRequestId(uint256 requestId);
+    error IncorrectRequestStatus(RequestStatus status);
+
+    error InvalidMinimumValue(uint256 min);
+    error InvalidMaximumValue(uint256 max);
+
+    error RequestAlreadyFinalized(RequestStatus current);
+    error AlreadyProcessed(uint256 fromChainId, uint256 requestId);
+    error InsufficientBalance(uint256 requested, uint256 available);
+    error PayoutFailed(address to, uint256 value);
 
     // event
     event WhitelistUpdated(address indexed _address, bool status);
-    event ChainListUpdated(uint256 indexed chainId, bool status);
     event Requested(address indexed requestAddress, RequestInfo request);
-    event SetRequested(uint256 indexed requestId, RequestStatus indexed requestStatus);
+    event SetRequested(
+        uint256 indexed requestId,
+        RequestStatus indexed requestStatus
+    );
     event TriggerPayouted(address indexed _address, uint256 value);
-    
-    // modifier
-    modifier onlyWhiteList {
-        if (!whiteList[msg.sender]) revert WhiteListUnauthorizedAccount(msg.sender);
-        _;
-    }
 
-    modifier checkValue(uint256 value) {
-        require(value == msg.value, "incorrect value");
+    // modifier
+    modifier onlyWhiteList() {
+        if (!whiteList[msg.sender])
+            revert WhiteListUnauthorizedAccount(msg.sender);
         _;
     }
 
@@ -66,87 +66,93 @@ contract Bridge is Ownable {
         whiteList[msg.sender] = true;
     }
 
+    receive() external payable {}
+
     function setWhiteList(address _address, bool status) external onlyOwner {
         whiteList[_address] = status;
 
         emit WhitelistUpdated(_address, status);
     }
 
-    function addChain(uint256 chainId) external onlyOwner {
-        if (chainList[chainId].active) revert ChainAlreadyExists(chainId);
+    function setMaximumValue(uint256 max) external onlyOwner {
+        if (max == 0 || max <= requestMinimumValue)
+            revert InvalidMaximumValue(max);
 
-        chainList[chainId].id = chainId;
-        chainList[chainId].active = true;
-
-        emit ChainListUpdated(chainId, true);
+        requestMaximumValue = max;
     }
 
-    function removeChain(uint256 chainId) external onlyOwner {
-        if (chainList[chainId].id == 0) revert IncorrectChainId(chainId);
-        else if (!chainList[chainId].active) revert ChainAlreadyRemoved(chainId);
-        
-        chainList[chainId].active = false;
+    function setMinimumValue(uint256 min) external onlyOwner {
+        if (min == 0 || min >= requestMaximumValue)
+            revert InvalidMinimumValue(min);
 
-        emit ChainListUpdated(chainId, false);
+        requestMinimumValue = min;
     }
 
     // 교환 요청
-    function request(
-        uint256 toChainId,
-        uint256 _value
-    ) external payable checkValue(_value) onlyWhiteList {
+    function request(uint256 toChainId) external payable onlyWhiteList {
+        if (msg.value > requestMaximumValue)
+            revert ExceedsMaximumValue(requestMaximumValue, msg.value);
+        else if (msg.value < requestMinimumValue)
+            revert BelowMinimumValue(requestMinimumValue, msg.value);
+
         RequestInfo memory req;
-        uint256 requestId = ++requestIdCount;
+        uint256 requestId = requestIdCount++;
 
         req.id = requestId;
         req.requestBy = msg.sender;
-        req.fromChainId = 1;
+        req.fromChainId = block.chainid;
         req.toChainId = toChainId;
-        req.fromValue = _value;
-        req.status = RequestStatus.pending;
+        req.fromValue = msg.value;
+        req.status = RequestStatus.normal;
 
         // @TODO chainLink 사용해서 가격 받아오기
         // 교환 비율 지정 (현재 1 : 1)
-        req.toValue = _value;
+        req.toValue = msg.value;
 
         requestList[requestId] = req;
-        
+
         emit Requested(msg.sender, req);
     }
 
-    // 교환 요청 취소
-    function cancelRequest(uint256 requestId) external onlyWhiteList {
+    // 교환 요청 취소 및 거절
+    function setRequest(
+        uint256 requestId,
+        RequestStatus status
+    ) external onlyOwner {
         RequestInfo storage req = requestList[requestId];
         if (req.id == 0) revert IncorrectRequestId(requestId);
-        require(req.requestBy == msg.sender, "only the requester can cancel");
-        require(req.status == RequestStatus.pending, "only when status pending can cancel");
+        else if (status == RequestStatus.normal)
+            revert IncorrectRequestStatus(status);
+        else if (req.status != RequestStatus.normal)
+            revert RequestAlreadyFinalized(req.status);
 
-        req.status = RequestStatus.canceled;
-        
-        emit SetRequested(requestId, RequestStatus.canceled);
-    }
-
-    // 교환 요청 상태 결정
-    function setRequest(uint256 requestId, RequestStatus status) external onlyOwner {
-        RequestInfo storage req = requestList[requestId];
-
-        if (req.id == 0) revert IncorrectRequestId(requestId);
-        require(req.status == RequestStatus.pending, "only when status pending can setRequest");
-
-        if (status == RequestStatus.approved) req.exchangedAt = block.timestamp;
         req.status = status;
-        req.statusDecidedBy = msg.sender;
+
+        // 환불
+        address _address = req.requestBy;
+        uint256 _value = req.fromValue;
+        (bool success, ) = _address.call{value: _value}("");
+        if (!success) revert PayoutFailed(_address, _value);
 
         emit SetRequested(requestId, status);
     }
 
     // 송금 함수
-    function triggerPayout(address payable _address, uint256 _value) external onlyOwner {
-        require(_value < address(this).balance, "contract value low");
+    function triggerPayout(
+        uint256 fromChainId,
+        uint256 requestId,
+        address payable _address,
+        uint256 _value
+    ) external onlyOwner {
+        if (payoutList[fromChainId][requestId])
+            revert AlreadyProcessed(fromChainId, requestId);
+        if (_value >= address(this).balance)
+            revert InsufficientBalance(_value, address(this).balance);
+
+        payoutList[fromChainId][requestId] = true;
         (bool success, ) = _address.call{value: _value}("");
-        require(success, "triggerPayout Fail");
+        if (!success) revert PayoutFailed(_address, _value);
 
         emit TriggerPayouted(_address, _value);
     }
-
 }
