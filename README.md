@@ -1,9 +1,34 @@
-# Contract INFO
+## BridgeNet Smart Contract
 
-## sepolia contract address
- 0x78Af50d22FfC31abD465227C3e28D95C0cd594F8
+크로스체인 브릿지 서비스 BridgeNet의 스마트컨트랙트입니다.
 
-## amoy contract address
- 0xc17e8110c0E80193f11A5f69eD68F90b6258833e
+## 🚀 Deploy
 
- Backend Repository or project description <a href="https://github.com/kangbaek324/bridgenet-backend.git">here</a>
+Sepolia
+
+- 0x2954e6E420A0C2c19f8278F206E0C6292348D5fe
+
+Amoy
+
+- 0x05946fA0Ef4E7EED067bcB678Ac08ca646971D5C
+
+## ⚙️ Feature
+
+- 화이트리스트 기반 접근 제어 (WhiteList)
+- 브릿징 요청
+- 요청 취소 및 거부
+- 브릿징 결과 전송
+
+## ⚒️ Stack
+
+- Solidity
+- Hardhat
+- OpenZeppelin
+
+## 🚀How to Deploy
+
+```
+npx hardhat ignition deploy ignition/modules/bridge.ts --network [network name]
+```
+
+Backend Repository or project description <a href="https://github.com/kangbaek324/bridgenet-backend.git">here</a>
