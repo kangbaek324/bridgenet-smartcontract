@@ -66,6 +66,8 @@ contract Bridge is Ownable {
         whiteList[msg.sender] = true;
     }
 
+    receive() external payable {}
+
     function setWhiteList(address _address, bool status) external onlyOwner {
         whiteList[_address] = status;
 
