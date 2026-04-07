@@ -13,6 +13,11 @@ describe("Bridge Contract Main Test", () => {
     canceled: 2n,
   };
 
+  const ValueRange = {
+    min: 0n,
+    max: 1n,
+  };
+
   const MIN_VALUE = ethers.parseEther("0.00001");
   const MAX_VALUE = ethers.parseEther("0.05");
   const VALID_VALUE = ethers.parseEther("0.001");
@@ -94,7 +99,9 @@ describe("Bridge Contract Main Test", () => {
     expect(await bridge.requestMaximumValue()).to.equal(newMax);
 
     // 원복
-    await bridge.connect(owner).setMaximumValue(MAX_VALUE);
+    await expect(bridge.connect(owner).setMaximumValue(MAX_VALUE))
+      .to.emit(bridge, "setValueRange")
+      .withArgs(ValueRange.max, MAX_VALUE);
   });
 
   // 유효한 Min 값 설정
@@ -104,7 +111,9 @@ describe("Bridge Contract Main Test", () => {
     expect(await bridge.requestMinimumValue()).to.equal(newMin);
 
     // 원복
-    await bridge.connect(owner).setMinimumValue(MIN_VALUE);
+    await expect(bridge.connect(owner).setMinimumValue(MIN_VALUE))
+      .to.emit(bridge, "setValueRange")
+      .withArgs(ValueRange.min, MIN_VALUE);
   });
 
   // [ Request ]

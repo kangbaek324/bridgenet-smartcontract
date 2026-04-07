@@ -15,6 +15,11 @@ contract Bridge is Ownable {
         canceled
     }
 
+    enum ValueRange {
+        min,
+        max
+    }
+
     struct RequestInfo {
         uint256 id;
         address requestBy;
@@ -53,6 +58,7 @@ contract Bridge is Ownable {
         uint256 indexed requestId,
         RequestStatus indexed requestStatus
     );
+    event setValueRange(ValueRange valueRange, uint256 value);
     event TriggerPayouted(address indexed _address, uint256 value);
 
     // modifier
@@ -78,6 +84,7 @@ contract Bridge is Ownable {
         if (max == 0 || max <= requestMinimumValue)
             revert InvalidMaximumValue(max);
 
+        emit setValueRange(ValueRange.max, max);
         requestMaximumValue = max;
     }
 
@@ -85,6 +92,7 @@ contract Bridge is Ownable {
         if (min == 0 || min >= requestMaximumValue)
             revert InvalidMinimumValue(min);
 
+        emit setValueRange(ValueRange.min, min);
         requestMinimumValue = min;
     }
 
