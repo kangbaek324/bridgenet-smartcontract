@@ -1,6 +1,7 @@
 # BridgeNet Smart Contract
 
-크로스체인 브릿지 서비스 BridgeNet의 스마트컨트랙트입니다.
+크로스체인 브릿지 서비스 BridgeNet의 스마트컨트랙트입니다. <br /><br />
+Backend Repository or project description <a href="https://github.com/kangbaek324/bridgenet-backend.git">here</a>
 
 ## 🚀 Deploy
 
@@ -30,5 +31,3 @@ Amoy
 ```
 npx hardhat ignition deploy ignition/modules/bridge.ts --network [network name]
 ```
-
-Backend Repository or project description <a href="https://github.com/kangbaek324/bridgenet-backend.git">here</a>
